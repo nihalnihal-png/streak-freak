@@ -1,0 +1,621 @@
+diff --git a/AGENTS.md b/AGENTS.md
+index be05e77..68da58f 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -21,13 +21,11 @@ npx expo-doctor             # diagnose dependency and config issues
+ npx expo install --fix      # fix incompatible package versions
+ ```
+ 
+-Run lint and typecheck before declaring any task done.
++Run `npm run typecheck` and `npm test` before declaring any task done.
+ 
+ ## Navigation & Routing
+ 
+-- Use **Expo Router** for all navigation. Routes live in `src/app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) outside `src/app/`.
+-- Import `Link`, `router`, and `useLocalSearchParams` from `expo-router`.
+-- Docs: https://docs.expo.dev/router/introduction.md
++No navigation library is installed yet. Before adding screens, choose between Expo Router and React Navigation, install it with `npx expo install`, and update this section to match. Until then, keep the app in `App.tsx`. Keep non-UI logic (domain rules, storage, hooks) outside the UI folders so it can be tested without rendering.
+ 
+ ## Building with EAS
+ 
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000..06ce680
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,53 @@
++# Streak Freak
++
++A self-reported, gamified fitness tracker for gym, walking and running sessions, built with Expo and React Native. Early development: the app is still the default Expo screen, and the domain logic for activity logging and streaks is in place with tests.
++
++## Requirements
++
++- Node.js 22 or newer
++- npm
++- Expo Go on an Android device, or an Android emulator
++
++## Setup
++
++```bash
++npm install
++npm start
++```
++
++Use `npm run android` to open an Android emulator, or scan the QR code in Expo Go.
++
++## Scripts
++
++| Command | What it does |
++| --- | --- |
++| `npm start` | Starts the Expo dev server |
++| `npm run typecheck` | Runs TypeScript with `tsc --noEmit` |
++| `npm test` | Runs the domain unit tests with Node's built-in test runner |
++
++## Project layout
++
++```
++App.tsx                  Entry screen (still the Expo template)
++index.ts                 Registers the root component
++src/domain/
++  dates.ts               Local calendar day keys (YYYY-MM-DD) and day arithmetic
++  activity.ts            Activity types and input validation
++  streak.ts              Streak calculation, derived only from activity dates
++  *.test.ts              Unit tests for the above
++docs/AUDIT.md            Phase 1 audit: current state, gaps, and the staged plan
++```
++
++## Design notes
++
++- Streaks are calculated from activity dates, not stored as counters. Several activities on one day count as one active day.
++- Dates are local-calendar day keys, so time-zone and daylight-saving changes do not shift a workout to a different day.
++- Domain code has no React or storage imports, so it can be tested without a device.
++
++## Status
++
++See `docs/AUDIT.md` for what works, what is missing, and the planned order of work. Not yet implemented: the activity UI, local persistence, the AWzm Coin economy, the meme reward system, reminders, and custom notification sounds.
++
++## License
++
++MIT. See `LICENSE`. The license file currently names Expo's copyright holder because it was carried over from the template; see `docs/AUDIT.md`.
+diff --git a/docs/AUDIT.md b/docs/AUDIT.md
+new file mode 100644
+index 0000000..7d27f41
+--- /dev/null
++++ b/docs/AUDIT.md
+@@ -0,0 +1,112 @@
++# Streak Freak — Phase 1 Audit
++
++Date: 2026-10-27. Scope: repository state at commit `8d6b427` ("Initial commit"), plus the foundation work done in this pass.
++
++## 1. What currently works
++
++- The project installs from the lockfile with `npm ci` (Node 22, npm 10).
++- TypeScript typecheck passes with `strict: true`.
++- `index.ts` registers `App` as the root component, which is the standard Expo entry point.
++- The app config (`app.json`) is valid for Expo: name, slug, icons, Android adaptive icon.
++
++What I did **not** verify: the app has not been run in Expo Go, an emulator, or on a device in this environment. "Runs" is unconfirmed.
++
++## 2. What is incomplete or broken
++
++The repository is still the Expo template. Nothing in the brief is implemented:
++
++- `App.tsx` shows "Open up App.tsx to start working on your app!" and nothing else.
++- No activity logging, history, or deletion.
++- No streak, XP/AWzm Coin, or unlock logic (the brief's economy does not exist yet).
++- No meme, sound, image, or video library or playback.
++- No reminders or notifications.
++- No dark theme. `app.json` sets `"userInterfaceStyle": "light"`, which conflicts with the brief's dark design direction.
++- No `android.package` in `app.json`. Notification channels, EAS builds, and store listings need it, so it should be set before any native work.
++
++Repository hygiene:
++
++- `AGENTS.md` told contributors to put routes in `src/app/` using Expo Router. Expo Router is not installed. I've corrected that section (see §5).
++- `AGENTS.md` and the old workflow referenced `npx expo lint` and `npx expo-doctor`. No ESLint setup exists, so `expo lint` will not work. `expo-doctor` has not been run.
++- `.gitignore` ignores `/ios` but not `/android`. Continuous Native Generation creates both folders, so decide now whether to commit `android/` or ignore it. The brief is Android-first, so this matters.
++- `LICENSE` is the MIT text with the copyright line "650 Industries, Inc. (aka Expo)". That is Expo's template notice, not yours. I have not changed it: it's a legal choice, and you should decide whether the copyright line should name you.
++- No tests or lint existed before this pass.
++
++## 3. Dependencies installed
++
++From `package.json` and the lockfile (not upgraded):
++
++| Package | Version |
++| --- | --- |
++| expo | ~57.0.31 |
++| expo-status-bar | ~57.0.1 |
++| react | 19.2.3 |
++| react-native | 0.86.3 |
++| typescript (dev) | ~6.0.3 |
++| @types/react (dev) | ~19.2.2 |
++
++Not installed, and needed for later phases: local persistence (AsyncStorage or expo-sqlite), audio (expo-audio), video (expo-video), notifications (expo-notifications), and image handling. None of these have been chosen or version-checked yet. Each must be installed with `npx expo install <package>` so its version matches SDK 57, and its API should be checked against the Expo docs for that SDK rather than from memory.
++
++Also not present: `@react-native-async-storage/async-storage` (the brief refers to "existing AsyncStorage usage", but none exists), any navigation library, and any test runner.
++
++I tried adding `@types/node` for typing the tests. `npm install` with the sandbox's npm 10 changed unrelated lockfile entries (it downgraded `@types/node` from 26.6.5 to 22.20.5 and removed `libc` fields from native packages). I reverted that. The tests run under Node directly and the typecheck excludes them, so no dependency was added.
++
++## 4. Data consistency and storage
++
++- No persistence exists, so there are no records to be inconsistent yet.
++- Nothing has been migrated or deleted. There is no user data in the repo.
++- Design decision made in this pass: streaks and daily totals are derived from activity records, not stored as counters. This follows the brief and avoids drift on delete or edit.
++- Dates are stored as local-calendar day keys (`YYYY-MM-DD`). Timestamps are kept only for creation order.
++
++## 5. Changes made in this pass
++
++Files added or changed in the repo:
++
++- `src/domain/dates.ts`: local day keys, real-date validation, day arithmetic in UTC (DST-safe).
++- `src/domain/activity.ts`: activity types, input validation (type, whole-minute duration 1–1440, real date not in the future, notes ≤ 280 characters, all errors reported together).
++- `src/domain/streak.ts`: streak calculation. Same-day duplicates count once, yesterday keeps the streak alive until the day ends, a missed day breaks it, and the longest run is tracked.
++- `src/domain/streak.test.ts`, `src/domain/activity.test.ts`: 22 tests covering the streak rules, month/year/leap-day boundaries, validation failures, and deletion effects. They pass under `TZ=UTC`, `America/New_York`, `Asia/Kolkata`, and `Pacific/Auckland`.
++- `tsconfig.json`: enables `allowImportingTsExtensions` (needed for Node to run `.ts` imports directly) and excludes test files from the Expo typecheck.
++- `package.json`: adds `test` and `typecheck` scripts. No dependency changes.
++- `AGENTS.md`: replaces the Expo Router claim with an accurate note; corrects the command list.
++- `README.md`: setup, scripts, layout, and status.
++- `docs/AUDIT.md`: this file.
++
++`App.tsx`, `app.json`, `LICENSE`, and the lockfile are unchanged.
++
++## 6. Recommended architecture
++
++Keep it simple and layered:
++
++1. `src/domain/`: pure rules (validation, streaks, coin economy, unlock rules). No React, no storage, no clock. Already started.
++2. `src/storage/`: a thin repository around one persistence layer, with versioned records and a schema version number. Writes must be awaited, and the UI should update only after a write succeeds.
++3. `src/hooks/` or a small state store: loads records, exposes add/delete actions, and recomputes derived values from records.
++4. `src/ui/` (or `src/components/`, `src/screens/`): presentational components only.
++5. `src/content/`: the meme catalogue as one typed file plus an `assets/memes/` folder. Playback logic lives outside UI.
++6. `src/reminders/`: notification scheduling and channel management, separate from UI.
++
++Persistence should be `expo-sqlite` or AsyncStorage with a single versioned JSON document. For a few thousand activity records either works; choose SQLite if you expect queries across history, AsyncStorage if you want the smaller dependency.
++
++## 7. Staged plan
++
++Phase 2 (stabilise, next):
++1. Choose navigation (Expo Router or React Navigation) and set `android.package` and dark theme in `app.json`.
++2. Decide the `android/` folder policy and the license copyright line.
++3. Run the app in Expo Go and an Android emulator; record what works.
++4. Add a lint setup if you want `expo lint`, or remove it from AGENTS.md.
++
++Phase 3 (in order, each reviewable on its own):
++1. Persistent activity log: storage layer, add/list/delete screens, validation wired to the UI, restart test.
++2. Streak and daily totals on the home screen, derived from storage.
++3. AWzm Coins: a configurable earning table, a transaction ledger (earn and reverse on delete), and balance derived from the ledger.
++4. Meme content catalogue and unlock records.
++5. Post-activity reward: play only after a successful save, with a skip control and single-sound playback.
++6. Reminders with local notifications. Custom notification sounds need a native sound resource and a new channel per sound, and must be verified on an Android device before being claimed to work.
++7. UI polish and regression pass.
++
++Before Phase 3 item 3, I recommend agreeing on the coin economy (proposed in the next message) so the ledger rules are settled before code depends on them.
++
++## 8. Not yet tested on a device
++
++- Running the app in Expo Go or on Android.
++- Persistence across restarts (nothing persists yet).
++- Any audio, video, notification, or custom sound behaviour.
+diff --git a/package.json b/package.json
+index daf18ee..a2e7507 100644
+--- a/package.json
++++ b/package.json
+@@ -16,7 +16,9 @@
+     "start": "expo start",
+     "android": "expo start --android",
+     "ios": "expo start --ios",
+-    "web": "expo start --web"
++    "web": "expo start --web",
++    "test": "node --test src/domain/*.test.ts",
++    "typecheck": "tsc --noEmit"
+   },
+   "private": true
+ }
+diff --git a/src/domain/activity.test.ts b/src/domain/activity.test.ts
+new file mode 100644
+index 0000000..fba4216
+--- /dev/null
++++ b/src/domain/activity.test.ts
+@@ -0,0 +1,53 @@
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { validateActivityInput } from './activity.ts';
++
++const TODAY = '2026-10-27';
++const good = { type: 'run', durationMinutes: 45, date: '2026-10-27' };
++
++test('valid input passes and is trimmed', () => {
++  const r = validateActivityInput({ ...good, notes: '  felt great  ' }, TODAY);
++  assert.equal(r.ok, true);
++  if (r.ok) assert.equal(r.value.notes, 'felt great');
++});
++
++test('blank notes are dropped', () => {
++  const r = validateActivityInput({ ...good, notes: '   ' }, TODAY);
++  assert.equal(r.ok, true);
++  if (r.ok) assert.equal('notes' in r.value, false);
++});
++
++test('unknown activity type is rejected', () => {
++  const r = validateActivityInput({ ...good, type: 'swim' }, TODAY);
++  assert.equal(r.ok, false);
++});
++
++test('negative, zero, fractional and oversized durations are rejected', () => {
++  for (const durationMinutes of [-5, 0, 12.5, 24 * 60 + 1, NaN, '30']) {
++    const r = validateActivityInput({ ...good, durationMinutes }, TODAY);
++    assert.equal(r.ok, false, `expected rejection for ${String(durationMinutes)}`);
++  }
++});
++
++test('impossible calendar dates are rejected', () => {
++  const r = validateActivityInput({ ...good, date: '2026-02-30' }, TODAY);
++  assert.equal(r.ok, false);
++});
++
++test('future dates are rejected', () => {
++  const r = validateActivityInput({ ...good, date: '2026-10-28' }, TODAY);
++  assert.equal(r.ok, false);
++});
++
++test('overlong notes are rejected', () => {
++  const r = validateActivityInput({ ...good, notes: 'x'.repeat(281) }, TODAY);
++  assert.equal(r.ok, false);
++});
++
++test('all errors are reported together', () => {
++  const r = validateActivityInput({ type: null, durationMinutes: 0, date: 'nope' }, TODAY);
++  assert.equal(r.ok, false);
++  if (!r.ok) {
++    assert.ok(r.errors.type && r.errors.durationMinutes && r.errors.date);
++  }
++});
+diff --git a/src/domain/activity.ts b/src/domain/activity.ts
+new file mode 100644
+index 0000000..70909c0
+--- /dev/null
++++ b/src/domain/activity.ts
+@@ -0,0 +1,97 @@
++import { isValidDayKey, toLocalDayKey } from './dates.ts';
++
++export const ACTIVITY_TYPES = ['gym', 'walk', 'run'] as const;
++export type ActivityType = (typeof ACTIVITY_TYPES)[number];
++
++export const MAX_DURATION_MINUTES = 24 * 60;
++export const MAX_NOTE_LENGTH = 280;
++
++/** A saved, self-reported activity. Stored as-is; everything else is derived. */
++export interface ActivityRecord {
++  id: string;
++  type: ActivityType;
++  durationMinutes: number;
++  /** Local calendar day the workout happened, YYYY-MM-DD. */
++  date: string;
++  notes?: string;
++  /** ISO timestamp of when the record was created (for ordering/audit). */
++  createdAt: string;
++}
++
++export interface ActivityInput {
++  type: unknown;
++  durationMinutes: unknown;
++  date: unknown;
++  notes?: unknown;
++}
++
++export type ValidationResult<T> =
++  | { ok: true; value: T }
++  | { ok: false; errors: Partial<Record<keyof ActivityInput, string>> };
++
++export interface ValidatedActivity {
++  type: ActivityType;
++  durationMinutes: number;
++  date: string;
++  notes?: string;
++}
++
++/**
++ * Validates raw user input for a new activity. `today` is injected so the
++ * rule "no future dates" can be tested without touching the real clock.
++ */
++export function validateActivityInput(
++  input: ActivityInput,
++  today: string = toLocalDayKey(new Date()),
++): ValidationResult<ValidatedActivity> {
++  const errors: Partial<Record<keyof ActivityInput, string>> = {};
++
++  const type = input.type;
++  if (typeof type !== 'string' || !(ACTIVITY_TYPES as readonly string[]).includes(type)) {
++    errors.type = 'Pick gym, walk, or run.';
++  }
++
++  const duration = input.durationMinutes;
++  if (
++    typeof duration !== 'number' ||
++    !Number.isInteger(duration) ||
++    duration < 1 ||
++    duration > MAX_DURATION_MINUTES
++  ) {
++    errors.durationMinutes = `Enter a whole number of minutes between 1 and ${MAX_DURATION_MINUTES}.`;
++  }
++
++  const date = input.date;
++  if (typeof date !== 'string' || !isValidDayKey(date)) {
++    errors.date = 'Enter a real calendar date (YYYY-MM-DD).';
++  } else if (date > today) {
++    errors.date = 'Activities cannot be logged for a future date.';
++  }
++
++  let notes: string | undefined;
++  if (input.notes !== undefined && input.notes !== null) {
++    if (typeof input.notes !== 'string') {
++      errors.notes = 'Notes must be text.';
++    } else {
++      const trimmed = input.notes.trim();
++      if (trimmed.length > MAX_NOTE_LENGTH) {
++        errors.notes = `Notes can be at most ${MAX_NOTE_LENGTH} characters.`;
++      } else if (trimmed.length > 0) {
++        notes = trimmed;
++      }
++    }
++  }
++
++  if (Object.keys(errors).length > 0) {
++    return { ok: false, errors };
++  }
++  return {
++    ok: true,
++    value: {
++      type: type as ActivityType,
++      durationMinutes: duration as number,
++      date: date as string,
++      ...(notes !== undefined ? { notes } : {}),
++    },
++  };
++}
+diff --git a/src/domain/dates.ts b/src/domain/dates.ts
+new file mode 100644
+index 0000000..407a875
+--- /dev/null
++++ b/src/domain/dates.ts
+@@ -0,0 +1,57 @@
++/**
++ * Local-calendar date helpers.
++ *
++ * A "day key" is a string in the form YYYY-MM-DD that represents a calendar
++ * day in the device's local time zone. Day keys are used instead of
++ * timestamps so that "which day did this happen on?" never depends on the
++ * time zone or daylight-saving offsets at the moment of comparison.
++ */
++
++const DAY_KEY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
++
++/** Returns the local-calendar day key for a Date, e.g. "2026-10-27". */
++export function toLocalDayKey(date: Date): string {
++  const y = date.getFullYear();
++  const m = String(date.getMonth() + 1).padStart(2, '0');
++  const d = String(date.getDate()).padStart(2, '0');
++  return `${y}-${m}-${d}`;
++}
++
++/**
++ * True only for a well-formed key that names a real calendar day
++ * (rejects "2026-02-30", "2026-13-01", and malformed strings).
++ */
++export function isValidDayKey(key: string): boolean {
++  const match = DAY_KEY_PATTERN.exec(key);
++  if (!match) return false;
++  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
++  const probe = new Date(Date.UTC(year, month - 1, day));
++  return (
++    probe.getUTCFullYear() === year &&
++    probe.getUTCMonth() === month - 1 &&
++    probe.getUTCDate() === day
++  );
++}
++
++/**
++ * Adds a number of calendar days to a day key. Arithmetic is done in UTC on
++ * a date-only value, so daylight-saving changes cannot shift the result.
++ */
++export function addDays(key: string, days: number): string {
++  const [y, m, d] = key.split('-').map(Number);
++  const date = new Date(Date.UTC(y, m - 1, d + days));
++  const yy = date.getUTCFullYear();
++  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
++  const dd = String(date.getUTCDate()).padStart(2, '0');
++  return `${yy}-${mm}-${dd}`;
++}
++
++/** Number of calendar days from `from` to `to` (negative if `to` is earlier). */
++export function daysBetween(from: string, to: string): number {
++  const [fy, fm, fd] = from.split('-').map(Number);
++  const [ty, tm, td] = to.split('-').map(Number);
++  const msPerDay = 24 * 60 * 60 * 1000;
++  return Math.round(
++    (Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / msPerDay,
++  );
++}
+diff --git a/src/domain/streak.test.ts b/src/domain/streak.test.ts
+new file mode 100644
+index 0000000..91e8882
+--- /dev/null
++++ b/src/domain/streak.test.ts
+@@ -0,0 +1,96 @@
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { computeStreak } from './streak.ts';
++import { addDays, daysBetween, isValidDayKey, toLocalDayKey } from './dates.ts';
++
++test('no activity: streak is zero', () => {
++  assert.deepEqual(computeStreak([], '2026-10-27'), {
++    current: 0,
++    longest: 0,
++    activeToday: false,
++  });
++});
++
++test('multiple activities on one day count as one active day', () => {
++  const s = computeStreak(['2026-10-27', '2026-10-27', '2026-10-27'], '2026-10-27');
++  assert.equal(s.current, 1);
++  assert.equal(s.longest, 1);
++});
++
++test('consecutive days build the streak', () => {
++  const s = computeStreak(['2026-10-25', '2026-10-26', '2026-10-27'], '2026-10-27');
++  assert.equal(s.current, 3);
++  assert.equal(s.activeToday, true);
++});
++
++test('unlogged today keeps yesterday streak visible', () => {
++  const s = computeStreak(['2026-10-25', '2026-10-26'], '2026-10-27');
++  assert.equal(s.current, 2);
++  assert.equal(s.activeToday, false);
++});
++
++test('a missed full day breaks the current streak but not the longest', () => {
++  const s = computeStreak(
++    ['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-24', '2026-10-25'],
++    '2026-10-25',
++  );
++  assert.equal(s.current, 2);
++  assert.equal(s.longest, 3);
++});
++
++test('streak continues across a month boundary', () => {
++  const s = computeStreak(['2026-01-30', '2026-01-31', '2026-02-01'], '2026-02-01');
++  assert.equal(s.current, 3);
++});
++
++test('streak continues across a year boundary', () => {
++  const s = computeStreak(['2026-12-31', '2027-01-01'], '2027-01-01');
++  assert.equal(s.current, 2);
++});
++
++test('leap day is handled correctly', () => {
++  const leap = computeStreak(['2028-02-28', '2028-02-29', '2028-03-01'], '2028-03-01');
++  assert.equal(leap.current, 3, '2028 has Feb 29, so the run is three days');
++  // 2027 has no Feb 29, so Feb 28 is followed directly by Mar 1.
++  const nonLeap = computeStreak(['2027-02-28', '2027-03-01'], '2027-03-01');
++  assert.equal(nonLeap.current, 2);
++});
++
++test('input order does not matter', () => {
++  const s = computeStreak(['2026-10-27', '2026-10-25', '2026-10-26'], '2026-10-27');
++  assert.equal(s.current, 3);
++});
++
++test('future-dated entries are ignored for the streak', () => {
++  const s = computeStreak(['2026-10-26', '2026-10-28'], '2026-10-27');
++  assert.equal(s.current, 1);
++  assert.equal(s.activeToday, false);
++});
++
++test('deleting a record changes the streak accordingly', () => {
++  const full = ['2026-10-25', '2026-10-26', '2026-10-27'];
++  assert.equal(computeStreak(full, '2026-10-27').current, 3);
++  const afterDelete = full.filter((d) => d !== '2026-10-26');
++  assert.equal(computeStreak(afterDelete, '2026-10-27').current, 1);
++});
++
++test('dates helpers: validation rejects impossible days', () => {
++  assert.equal(isValidDayKey('2026-02-30'), false);
++  assert.equal(isValidDayKey('2026-13-01'), false);
++  assert.equal(isValidDayKey('2026-1-01'), false);
++  assert.equal(isValidDayKey('2028-02-29'), true);
++  assert.equal(isValidDayKey('2027-02-29'), false);
++});
++
++test('dates helpers: arithmetic and difference', () => {
++  assert.equal(addDays('2026-03-01', -1), '2026-02-28');
++  assert.equal(addDays('2028-02-28', 1), '2028-02-29');
++  assert.equal(daysBetween('2026-10-25', '2026-10-27'), 2);
++  assert.equal(daysBetween('2026-10-27', '2026-10-25'), -2);
++});
++
++test('toLocalDayKey uses the local calendar, not UTC', () => {
++  // Constructed with local-time arguments, so the expected key is the same in every zone.
++  assert.equal(toLocalDayKey(new Date(2026, 9, 27, 0, 30)), '2026-10-27');
++  assert.equal(toLocalDayKey(new Date(2026, 9, 27, 23, 59)), '2026-10-27');
++});
+diff --git a/src/domain/streak.ts b/src/domain/streak.ts
+new file mode 100644
+index 0000000..5da9ad1
+--- /dev/null
++++ b/src/domain/streak.ts
+@@ -0,0 +1,60 @@
++import { addDays, daysBetween } from './dates.ts';
++
++export interface StreakSummary {
++  /** Consecutive active days ending today, or ending yesterday if today is not yet logged. */
++  current: number;
++  /** Longest run of consecutive active days in the whole history. */
++  longest: number;
++  /** True if today has at least one qualifying activity. */
++  activeToday: boolean;
++}
++
++/**
++ * Derives streak figures from activity day keys alone.
++ *
++ * - Several activities on one day count as one active day.
++ * - The streak is the count of consecutive active days, not activities.
++ * - If today is not logged yet, yesterday's run still counts, so the
++ *   streak stays visible until the day ends. Missing a full day breaks it.
++ * - Activities dated after `today` are ignored for the current streak.
++ *
++ * Pure function: no storage, no UI, no clock. Pass `today` explicitly.
++ */
++export function computeStreak(
++  activityDays: readonly string[],
++  today: string,
++): StreakSummary {
++  const days = Array.from(new Set(activityDays))
++    .filter((d) => d <= today)
++    .sort();
++
++  const activeSet = new Set(days);
++  const activeToday = activeSet.has(today);
++
++  // Longest run across the full history.
++  let longest = 0;
++  let run = 0;
++  let previous: string | null = null;
++  for (const day of days) {
++    run = previous !== null && daysBetween(previous, day) === 1 ? run + 1 : 1;
++    longest = Math.max(longest, run);
++    previous = day;
++  }
++
++  // Current streak: anchor on today, or yesterday if today is not logged.
++  const yesterday = addDays(today, -1);
++  let anchor: string | null = null;
++  if (activeToday) anchor = today;
++  else if (activeSet.has(yesterday)) anchor = yesterday;
++
++  let current = 0;
++  if (anchor !== null) {
++    let cursor: string = anchor;
++    while (activeSet.has(cursor)) {
++      current += 1;
++      cursor = addDays(cursor, -1);
++    }
++  }
++
++  return { current, longest, activeToday };
++}
+diff --git a/tsconfig.json b/tsconfig.json
+index b9567f6..d3d3f67 100644
+--- a/tsconfig.json
++++ b/tsconfig.json
+@@ -1,6 +1,9 @@
+ {
+   "extends": "expo/tsconfig.base",
+   "compilerOptions": {
+-    "strict": true
+-  }
++    "strict": true,
++    "allowImportingTsExtensions": true,
++    "noEmit": true
++  },
++  "exclude": ["**/*.test.ts"]
+ }
