@@ -1888,24 +1888,20 @@ export default function App() {
 
             <View style={styles.menuDivider} />
 
-            {__DEV__ && (
-              <>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.menuItem,
-                    pressed && styles.pressed,
-                  ]}
-                  onPress={openDeveloperOptions}
-                >
-                  <Text style={styles.menuItemText}>
-                    🛠️ Developer Options
-                  </Text>
-                  <Text style={styles.menuPlaceholder}>LOCKED 🔒</Text>
-                </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuItem,
+                pressed && styles.pressed,
+              ]}
+              onPress={openDeveloperOptions}
+            >
+              <Text style={styles.menuItemText}>
+                🛠️ Developer Options
+              </Text>
+              <Text style={styles.menuPlaceholder}>LOCKED 🔒</Text>
+            </Pressable>
 
-                <View style={styles.menuDivider} />
-              </>
-            )}
+            <View style={styles.menuDivider} />
 
             <Pressable
               style={({ pressed }) => [
