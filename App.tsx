@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   AppState,
@@ -17,6 +17,7 @@ import {
   View,
   ViewStyle,
 } from "react-native";
+import * as Updates from "expo-updates";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   getMemesByCategory,
@@ -459,6 +460,11 @@ export default function App() {
   const [galleryCategory, setGalleryCategory] = useState("all");
   const [marketOpen, setMarketOpen] = useState(false);
   const [devPanelOpen, setDevPanelOpen] = useState(false);
+  const [devPasswordOpen, setDevPasswordOpen] = useState(false);
+  const [devPassword, setDevPassword] = useState("");
+  const [wrongPasswordOpen, setWrongPasswordOpen] = useState(false);
+  const [otaStatus, setOtaStatus] = useState("Automatic updates enabled");
+  const [otaBusy, setOtaBusy] = useState(false);
   const [devStreakOverride, setDevStreakOverride] = useState<number | null>(null);
   const [devStreakInput, setDevStreakInput] = useState("7");
   const [dialog, setDialog] = useState<{
@@ -479,6 +485,7 @@ export default function App() {
 
   const savingRef = useRef(false);
   const txRef = useRef(false);
+  const otaBusyRef = useRef(false);
   const showNotice = (title: string, message: string) => {
     setDialog({
       title,
@@ -486,6 +493,72 @@ export default function App() {
       buttons: [{ text: "OK", variant: "primary" }],
     });
   };
+  const openDeveloperOptions = () => {
+    if (!__DEV__) return;
+    setMenuOpen(false);
+    setDevPassword("");
+    setTimeout(() => setDevPasswordOpen(true), 250);
+  };
+  const unlockDeveloperOptions = () => {
+    if (devPassword.trim().toLowerCase() === "nihal") {
+      setDevPassword("");
+      setDevPasswordOpen(false);
+      setDevPanelOpen(true);
+    } else {
+      setDevPassword("");
+      setDevPasswordOpen(false);
+      setWrongPasswordOpen(true);
+    }
+  };
+  const checkForOTAUpdate = useCallback(async (manual = false) => {
+    if (otaBusyRef.current) return;
+
+    if (!Updates.isEnabled) {
+      setOtaStatus("OTA updates are not enabled in this build.");
+      return;
+    }
+
+    otaBusyRef.current = true;
+    setOtaBusy(true);
+    setOtaStatus("Checking for updates...");
+
+    try {
+      const result = await Updates.checkForUpdateAsync();
+
+      if (!result.isAvailable) {
+        setOtaStatus(
+          manual
+            ? "No new update available."
+            : "App is up to date."
+        );
+        return;
+      }
+
+      setOtaStatus("Update found. Downloading...");
+
+      const downloaded = await Updates.fetchUpdateAsync();
+
+      if (downloaded.isNew) {
+        setOtaStatus("Update downloaded. Restarting app...");
+        setTimeout(() => {
+          void Updates.reloadAsync().catch((error: unknown) => {
+            const message =
+              error instanceof Error ? error.message : String(error);
+            setOtaStatus(`OTA error: ${message}`);
+          });
+        }, 500);
+      } else {
+        setOtaStatus("No new update was downloaded.");
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : String(error);
+      setOtaStatus(`OTA error: ${message}`);
+    } finally {
+      otaBusyRef.current = false;
+      setOtaBusy(false);
+    }
+  }, []);
   const tagline = useMemo(() => pick(TAGLINES), []);
   const chart = useMemo(() => Array.from({ length: 16 }, () => 0.25 + Math.random() * 0.75), []);
   const pump = useMemo(() => 100 + Math.floor(Math.random() * 9000), []);
@@ -588,6 +661,21 @@ export default function App() {
       sub.remove();
     };
   }, []);
+
+  /* automatic OTA updates */
+  useEffect(() => {
+    if (!loaded || __DEV__ || !Updates.isEnabled) return;
+
+    void checkForOTAUpdate(false);
+
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        void checkForOTAUpdate(false);
+      }
+    });
+
+    return () => subscription.remove();
+  }, [loaded, checkForOTAUpdate]);
 
   /* derived values (always calculated from the saved records) */
   const todayKey = dayKey(new Date(now));
@@ -1076,16 +1164,7 @@ export default function App() {
 
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
-            <Pressable
-              onLongPress={() => {
-                if (__DEV__) setDevPanelOpen(true);
-              }}
-              delayLongPress={1200}
-              accessibilityRole="button"
-              accessibilityLabel="Open developer tools"
-            >
-              <Text style={styles.brand}>STREAK FREAK ⚡</Text>
-            </Pressable>
+            <Text style={styles.brand}>STREAK FREAK ⚡</Text>
             <Text style={styles.heading}>
               BEAST <Text style={{ color: C.green }}>MODE.</Text>
             </Text>
@@ -1809,6 +1888,25 @@ export default function App() {
 
             <View style={styles.menuDivider} />
 
+            {__DEV__ && (
+              <>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.menuItem,
+                    pressed && styles.pressed,
+                  ]}
+                  onPress={openDeveloperOptions}
+                >
+                  <Text style={styles.menuItemText}>
+                    🛠️ Developer Options
+                  </Text>
+                  <Text style={styles.menuPlaceholder}>LOCKED 🔒</Text>
+                </Pressable>
+
+                <View style={styles.menuDivider} />
+              </>
+            )}
+
             <Pressable
               style={({ pressed }) => [
                 styles.galleryButton,
@@ -2048,61 +2146,212 @@ export default function App() {
       />
 
       {__DEV__ && (
-        <Modal
-          visible={devPanelOpen}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setDevPanelOpen(false)}
-        >
-          <View style={styles.backdrop}>
-            <View style={[styles.card, { width: "90%", maxWidth: 420 }]}>
-              <Text style={styles.section}>🛠️ DEVELOPER MODE</Text>
-              <Text style={styles.mutedSmall}>
-                Testing controls — development builds only.
-              </Text>
+        <>
+          {/* Developer password modal */}
+          <Modal
+            visible={devPasswordOpen}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setDevPasswordOpen(false)}
+          >
+            <View style={styles.backdrop}>
+              <View style={[styles.card, { width: "100%", maxWidth: 420 }]}>
+                <Text style={styles.section}>🔒 DEVELOPER ACCESS</Text>
 
-              <Text style={styles.label}>Override displayed streak</Text>
-              <TextInput
-                value={devStreakInput}
-                onChangeText={setDevStreakInput}
-                keyboardType="number-pad"
-                placeholder="Enter streak"
-                placeholderTextColor={C.dim}
-                style={styles.input}
-              />
-
-              <Pressable
-                onPress={setTestStreak}
-                style={styles.devButton}
-              >
-                <Text style={styles.logText}>SET TEST STREAK</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={resetTestStreak}
-                style={styles.devButton}
-              >
-                <Text style={styles.logText}>USE REAL STREAK</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={clearLore}
-                style={[styles.devButton, { borderColor: C.red }]}
-              >
-                <Text style={[styles.logText, { color: C.red }]}>
-                  CLEAR ALL LORE & SAVE DATA
+                <Text style={styles.mutedSmall}>
+                  Answer the security question to continue.
                 </Text>
-              </Pressable>
 
-              <Pressable
-                onPress={() => setDevPanelOpen(false)}
-                style={styles.devButton}
-              >
-                <Text style={styles.logText}>CLOSE</Text>
-              </Pressable>
+                <Text style={[styles.label, { marginTop: 20 }]}>
+                  Who is the greatest human who has ever lived and ever will live
+                  in the entire universe?
+                </Text>
+
+                <TextInput
+                  value={devPassword}
+                  onChangeText={setDevPassword}
+                  placeholder="Enter your answer"
+                  placeholderTextColor={C.dim}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  secureTextEntry
+                  onSubmitEditing={unlockDeveloperOptions}
+                  style={styles.input}
+                />
+
+                <Pressable
+                  onPress={unlockDeveloperOptions}
+                  style={styles.devButton}
+                >
+                  <Text style={styles.logText}>
+                    UNLOCK DEVELOPER OPTIONS
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => setDevPasswordOpen(false)}
+                  style={styles.devButton}
+                >
+                  <Text style={styles.muted}>CANCEL</Text>
+                </Pressable>
+              </View>
             </View>
-          </View>
-        </Modal>
+          </Modal>
+
+          {/* Wrong password meme modal */}
+          <Modal
+            visible={wrongPasswordOpen}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setWrongPasswordOpen(false)}
+          >
+            <View style={styles.backdrop}>
+              <View
+                style={[
+                  styles.card,
+                  {
+                    width: "100%",
+                    maxWidth: 420,
+                    alignItems: "center",
+                    borderColor: C.red,
+                    borderWidth: 2,
+                  },
+                ]}
+              >
+                <Text
+                  style={{
+                    color: C.red,
+                    fontSize: 23,
+                    fontWeight: "900",
+                    textAlign: "center",
+                  }}
+                >
+                  ACCESS DENIED 💀
+                </Text>
+
+                <Image
+                  source={require("./assets/memes/dev-access-denied/wrong-password.png")}
+                  style={{
+                    width: "100%",
+                    height: 240,
+                    marginTop: 16,
+                    borderRadius: 12,
+                  }}
+                  resizeMode="contain"
+                />
+
+                <Text style={[styles.muted, { marginTop: 14, textAlign: "center" }]}>
+                  Bro really thought they could enter developer mode.
+                </Text>
+
+                <Pressable
+                  onPress={() => {
+                    setWrongPasswordOpen(false);
+                    setTimeout(() => setDevPasswordOpen(true), 250);
+                  }}
+                  style={[styles.devButton, { width: "100%", marginTop: 18 }]}
+                >
+                  <Text style={styles.logText}>I&apos;LL TRY AGAIN</Text>
+                </Pressable>
+              </View>
+            </View>
+          </Modal>
+
+          {/* Developer options */}
+          <Modal
+            visible={devPanelOpen}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setDevPanelOpen(false)}
+          >
+            <View style={styles.backdrop}>
+              <ScrollView
+                contentContainerStyle={{
+                  flexGrow: 1,
+                  justifyContent: "center",
+                  paddingVertical: 20,
+                }}
+              >
+                <View style={[styles.card, { width: "100%", maxWidth: 420, alignSelf: "center" }]}>
+                  <Text style={styles.section}>🛠️ DEVELOPER OPTIONS</Text>
+
+                  <Text style={styles.mutedSmall}>
+                    Internal testing and OTA diagnostics.
+                  </Text>
+
+                  <Text style={[styles.label, { marginTop: 18 }]}>
+                    OTA UPDATE STATUS
+                  </Text>
+
+                  <Text style={styles.mutedSmall}>
+                    {otaStatus}
+                  </Text>
+
+                  <Pressable
+                    onPress={() => void checkForOTAUpdate(true)}
+                    disabled={otaBusy}
+                    style={[
+                      styles.devButton,
+                      otaBusy && styles.disabledButton,
+                    ]}
+                  >
+                    <Text style={styles.logText}>
+                      {otaBusy ? "CHECKING..." : "CHECK FOR UPDATES"}
+                    </Text>
+                  </Pressable>
+
+                  <Text style={[styles.mutedSmall, { marginTop: 6 }]}>
+                    Automatic checking is enabled. Use this button to manually
+                    request an update check.
+                  </Text>
+
+                  <View style={styles.menuDivider} />
+
+                  <Text style={styles.label}>Override displayed streak</Text>
+
+                  <TextInput
+                    value={devStreakInput}
+                    onChangeText={setDevStreakInput}
+                    keyboardType="number-pad"
+                    placeholder="Enter streak"
+                    placeholderTextColor={C.dim}
+                    style={styles.input}
+                  />
+
+                  <Pressable
+                    onPress={setTestStreak}
+                    style={styles.devButton}
+                  >
+                    <Text style={styles.logText}>SET TEST STREAK</Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={resetTestStreak}
+                    style={styles.devButton}
+                  >
+                    <Text style={styles.logText}>USE REAL STREAK</Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={clearLore}
+                    style={[styles.devButton, { borderColor: C.red }]}
+                  >
+                    <Text style={[styles.logText, { color: C.red }]}>
+                      CLEAR ALL LORE & SAVE DATA
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => setDevPanelOpen(false)}
+                    style={styles.devButton}
+                  >
+                    <Text style={styles.logText}>CLOSE DEVELOPER OPTIONS</Text>
+                  </Pressable>
+                </View>
+              </ScrollView>
+            </View>
+          </Modal>
+        </>
       )}
 
       <CelebrationModal data={celebration} onClose={closeCelebration} />
